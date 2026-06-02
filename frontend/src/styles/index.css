@@ -1,0 +1,10 @@
+/* Global styles entry — imported by src/main.jsx */
+/* Import existing root index.css so existing styles are preserved */
+@import "../index.css";
+
+/* Add any additional global rules here */
+body {
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

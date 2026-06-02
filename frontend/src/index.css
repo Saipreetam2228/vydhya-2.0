@@ -1,0 +1,79 @@
+/* Import Tailwind's three layers */
+/* stylelint-disable at-rule-no-unknown */
+/* Tell stylelint to ignore Tailwind's at-rules so they aren't flagged as unknown */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+/* stylelint-enable at-rule-no-unknown */
+
+/* Base styles applied globally */
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    @apply font-sans bg-background-light text-gray-900 antialiased;
+  }
+
+  /* Dark mode body */
+  .dark body {
+    @apply bg-background-dark text-gray-100;
+  }
+
+  /* Smooth scrollbar */
+  ::-webkit-scrollbar {
+    width: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-gray-100;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full;
+  }
+  .dark ::-webkit-scrollbar-track {
+    @apply bg-gray-800;
+  }
+  .dark ::-webkit-scrollbar-thumb {
+    @apply bg-gray-600 rounded-full;
+  }
+}
+
+/* Reusable component classes */
+@layer components {
+  .btn-primary {
+    @apply bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium
+           hover:bg-primary-light transition-colors duration-200
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply bg-white text-gray-700 px-4 py-2 rounded-lg text-sm font-medium
+           border border-gray-200 hover:bg-gray-50 transition-colors duration-200
+           dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700;
+  }
+
+  .btn-danger {
+    @apply bg-danger text-white px-4 py-2 rounded-lg text-sm font-medium
+           hover:bg-red-600 transition-colors duration-200;
+  }
+
+  .input-field {
+    @apply w-full h-10 px-3 text-sm border border-gray-200 rounded-lg
+           bg-gray-50 text-gray-900 placeholder-gray-400
+           focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent
+           transition-all duration-200
+           dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100;
+  }
+
+  .card {
+    @apply bg-white rounded-xl border border-gray-100 shadow-sm
+           dark:bg-gray-900 dark:border-gray-800;
+  }
+
+  .page-container {
+    @apply p-6 space-y-6;
+  }
+}
