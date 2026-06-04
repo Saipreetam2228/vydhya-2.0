@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Activity, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import authService from "../services/authService";
 import toast from "react-hot-toast";
 
 export default function Login() {
@@ -36,17 +37,19 @@ export default function Login() {
     setErrors({});
 
     try {
-      // TODO Phase 9: Replace with real API call
-      // Temporary mock login for frontend development
-      if (email === "admin@vydhya.com" && password === "Admin@123") {
-        login({ name: "VYDHYA Admin", email }, "mock-jwt-token");
-        toast.success("Welcome back!");
-        navigate("/");
-      } else {
-        setErrors({ general: "Invalid email or password" });
-      }
+      const data = await authService.login(email, password);
+      login(
+        { name: data.user_name, email: data.user_email },
+        data.access_token,
+      );
+      toast.success("Welcome back!");
+      navigate("/");
     } catch (err) {
-      toast.error("Something went wrong. Please try again.");
+      if (err.response?.status === 401) {
+        setErrors({ general: "Invalid email or password" });
+      } else {
+        toast.error("Server error. Please try again.");
+      }
     } finally {
       setLoading(false);
     }

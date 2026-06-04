@@ -1,83 +1,39 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Plus, Search, Pencil, Trash2, Eye, Stethoscope } from "lucide-react";
 import PageHeader from "../components/common/PageHeader";
 import DataTable from "../components/common/DataTable";
 import Badge from "../components/common/Badge";
 import Modal from "../components/common/Modal";
 import DoctorForm from "../components/forms/DoctorForm";
+import { doctorService } from "../services/doctorService";
 import toast from "react-hot-toast";
-
-const initialDoctors = [
-  {
-    id: "DOC-00001",
-    firstName: "Priya",
-    lastName: "Sharma",
-    specialty: "Psychology",
-    experience: 12,
-    contact: "9234567890",
-    email: "priya.sharma@vydhya.com",
-    status: "Active",
-  },
-  {
-    id: "DOC-00002",
-    firstName: "Ramesh",
-    lastName: "Bandaru",
-    specialty: "Dental",
-    experience: 18,
-    contact: "9123456789",
-    email: "ramesh.bandaru@vydhya.com",
-    status: "Active",
-  },
-  {
-    id: "DOC-00003",
-    firstName: "Ananya",
-    lastName: "Iyer",
-    specialty: "Cardiology",
-    experience: 9,
-    contact: "9012345678",
-    email: "ananya.iyer@vydhya.com",
-    status: "On Leave",
-  },
-  {
-    id: "DOC-00004",
-    firstName: "Kiran",
-    lastName: "Rao",
-    specialty: "Neurology",
-    experience: 15,
-    contact: "8901234567",
-    email: "kiran.rao@vydhya.com",
-    status: "Active",
-  },
-  {
-    id: "DOC-00005",
-    firstName: "Sathya",
-    lastName: "Adapa",
-    specialty: "Orthopedics",
-    experience: 22,
-    contact: "8890123456",
-    email: "sathya.adapa@vydhya.com",
-    status: "Active",
-  },
-  {
-    id: "DOC-00006",
-    firstName: "Meera",
-    lastName: "Pillai",
-    specialty: "Pediatrics",
-    experience: 7,
-    contact: "8789012345",
-    email: "meera.pillai@vydhya.com",
-    status: "Inactive",
-  },
-];
 
 const ITEMS_PER_PAGE = 5;
 
-function generateDoctorId(doctors) {
-  const max = doctors.reduce((acc, d) => {
-    const num = parseInt(d.id.replace("DOC-", ""));
-    return num > acc ? num : acc;
-  }, 0);
-  return `DOC-${String(max + 1).padStart(5, "0")}`;
+function fromApiResponse(doctor) {
+  return {
+    id: doctor.id,
+    doctorId: doctor.doctor_id,
+    firstName: doctor.first_name,
+    lastName: doctor.last_name,
+    specialty: doctor.specialty,
+    experience: doctor.experience_years,
+    contact: doctor.contact,
+    email: doctor.email || "",
+    status: doctor.status,
+  };
+}
+
+function toApiPayload(form) {
+  return {
+    first_name: form.firstName,
+    last_name: form.lastName,
+    specialty: form.specialty,
+    experience_years: parseInt(form.experience),
+    contact: form.contact,
+    email: form.email,
+    status: form.status,
+  };
 }
 
 function StatStrip({ label, value, color }) {
@@ -95,7 +51,9 @@ function StatStrip({ label, value, color }) {
 }
 
 export default function Doctors() {
-  const [doctors, setDoctors] = useState(initialDoctors);
+  const [doctors, setDoctors] = useState([]);
+  // eslint-disable-next-line no-unused-vars
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [showFormModal, setShowFormModal] = useState(false);
@@ -103,6 +61,24 @@ export default function Doctors() {
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [editingDoctor, setEditingDoctor] = useState(null);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/immutability
+    loadDoctors();
+  }, []);
+
+  const loadDoctors = async () => {
+    try {
+      setLoading(true);
+      const data = await doctorService.getAll();
+      setDoctors(data.map(fromApiResponse));
+      // eslint-disable-next-line no-unused-vars
+    } catch (err) {
+      toast.error("Failed to load doctors");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -126,17 +102,15 @@ export default function Doctors() {
     setCurrentPage(1);
   };
 
-  const handleAdd = (formData) => {
-    const newDoctor = {
-      ...formData,
-      id: generateDoctorId(doctors),
-      experience: Number(formData.experience),
-    };
-    setDoctors((prev) => [newDoctor, ...prev]);
-    setShowFormModal(false);
-    toast.success(
-      `Dr. ${formData.firstName} ${formData.lastName} added successfully`,
-    );
+  const handleAdd = async (formData) => {
+    try {
+      await doctorService.create(toApiPayload(formData));
+      toast.success(`Dr. ${formData.firstName} ${formData.lastName} added`);
+      setShowFormModal(false);
+      loadDoctors();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to add doctor");
+    }
   };
 
   const handleEditOpen = (doctor) => {
@@ -144,21 +118,16 @@ export default function Doctors() {
     setShowFormModal(true);
   };
 
-  const handleEdit = (formData) => {
-    setDoctors((prev) =>
-      prev.map((d) =>
-        d.id === editingDoctor.id
-          ? {
-              ...formData,
-              id: editingDoctor.id,
-              experience: Number(formData.experience),
-            }
-          : d,
-      ),
-    );
-    setShowFormModal(false);
-    setEditingDoctor(null);
-    toast.success("Doctor record updated successfully");
+  const handleEdit = async (formData) => {
+    try {
+      await doctorService.update(editingDoctor.id, toApiPayload(formData));
+      toast.success("Doctor updated successfully");
+      setShowFormModal(false);
+      setEditingDoctor(null);
+      loadDoctors();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to update doctor");
+    }
   };
 
   const handleDeleteOpen = (doctor) => {
@@ -166,13 +135,19 @@ export default function Doctors() {
     setShowDeleteModal(true);
   };
 
-  const handleDeleteConfirm = () => {
-    setDoctors((prev) => prev.filter((d) => d.id !== selectedDoctor.id));
-    setShowDeleteModal(false);
-    toast.success(
-      `Dr. ${selectedDoctor.firstName} ${selectedDoctor.lastName} removed`,
-    );
-    setSelectedDoctor(null);
+  const handleDeleteConfirm = async () => {
+    try {
+      await doctorService.delete(selectedDoctor.id);
+      toast.success(
+        `Dr. ${selectedDoctor.firstName} ${selectedDoctor.lastName} removed`,
+      );
+      setShowDeleteModal(false);
+      setSelectedDoctor(null);
+      loadDoctors();
+      // eslint-disable-next-line no-unused-vars
+    } catch (err) {
+      toast.error("Failed to delete doctor");
+    }
   };
 
   const handleView = (doctor) => {

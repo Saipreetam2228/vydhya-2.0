@@ -1,236 +1,163 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Plus, Search, Pencil, Trash2, Eye } from "lucide-react";
 import PageHeader from "../components/common/PageHeader";
 import DataTable from "../components/common/DataTable";
 import Badge from "../components/common/Badge";
 import Modal from "../components/common/Modal";
 import PatientForm from "../components/forms/PatientForm";
+import { patientService } from "../services/patientService";
 import toast from "react-hot-toast";
-
-// Mock data — replaced with real API calls in Phase 10
-const initialPatients = [
-  {
-    id: "PAT-00001",
-    firstName: "Aarav",
-    lastName: "Sharma",
-    age: 22,
-    gender: "Male",
-    contact: "8919438357",
-    email: "aarav@email.com",
-    doctor: "Dr. Ramesh Bandaru",
-    department: "Dental",
-    status: "Active",
-    dob: "2003-05-22",
-    address: "Chennai, TN",
-  },
-  {
-    id: "PAT-00002",
-    firstName: "Sita",
-    lastName: "Patel",
-    age: 17,
-    gender: "Female",
-    contact: "9876543210",
-    email: "sita@email.com",
-    doctor: "Dr. Priya Sharma",
-    department: "Neurology",
-    status: "Under Observation",
-    dob: "2007-08-10",
-    address: "Hyderabad, TS",
-  },
-  {
-    id: "PAT-00003",
-    firstName: "Ravi",
-    lastName: "Kumar",
-    age: 45,
-    gender: "Male",
-    contact: "8765432109",
-    email: "ravi@email.com",
-    doctor: "Dr. Ananya Iyer",
-    department: "Cardiology",
-    status: "Active",
-    dob: "1979-03-15",
-    address: "Bangalore, KA",
-  },
-  {
-    id: "PAT-00004",
-    firstName: "Meena",
-    lastName: "Reddy",
-    age: 32,
-    gender: "Female",
-    contact: "7654321098",
-    email: "meena@email.com",
-    doctor: "Dr. Kiran Rao",
-    department: "Psychology",
-    status: "Discharged",
-    dob: "1992-11-20",
-    address: "Mumbai, MH",
-  },
-  {
-    id: "PAT-00005",
-    firstName: "Arjun",
-    lastName: "Nair",
-    age: 28,
-    gender: "Male",
-    contact: "6543210987",
-    email: "arjun@email.com",
-    doctor: "Dr. Priya Sharma",
-    department: "Orthopedics",
-    status: "Active",
-    dob: "1996-07-04",
-    address: "Kochi, KL",
-  },
-  {
-    id: "PAT-00006",
-    firstName: "Divya",
-    lastName: "Menon",
-    age: 54,
-    gender: "Female",
-    contact: "5432109876",
-    email: "divya@email.com",
-    doctor: "Dr. Ramesh Bandaru",
-    department: "Dental",
-    status: "Active",
-    dob: "1970-01-30",
-    address: "Pune, MH",
-  },
-  {
-    id: "PAT-00007",
-    firstName: "Karthik",
-    lastName: "Iyer",
-    age: 19,
-    gender: "Male",
-    contact: "4321098765",
-    email: "karthik@email.com",
-    doctor: "Dr. Ananya Iyer",
-    department: "General",
-    status: "Active",
-    dob: "2005-09-12",
-    address: "Chennai, TN",
-  },
-  {
-    id: "PAT-00008",
-    firstName: "Priya",
-    lastName: "Rao",
-    age: 38,
-    gender: "Female",
-    contact: "3210987654",
-    email: "priya@email.com",
-    doctor: "Dr. Kiran Rao",
-    department: "Dermatology",
-    status: "Under Observation",
-    dob: "1986-04-25",
-    address: "Delhi, DL",
-  },
-];
 
 const ITEMS_PER_PAGE = 5;
 
-// Generates the next patient ID based on existing records
-function generatePatientId(patients) {
-  const max = patients.reduce((acc, p) => {
-    const num = parseInt(p.id.replace("PAT-", ""));
-    return num > acc ? num : acc;
-  }, 0);
-  return `PAT-${String(max + 1).padStart(5, "0")}`;
+// Maps frontend form fields to backend field names
+function toApiPayload(form) {
+  return {
+    first_name: form.firstName,
+    last_name: form.lastName,
+    age: parseInt(form.age),
+    gender: form.gender,
+    dob: form.dob || null,
+    contact: form.contact,
+    email: form.email || null,
+    address: form.address || null,
+    doctor_id: null,
+    department: form.department || null,
+    status: form.status,
+  };
+}
+
+// Maps backend response fields to frontend form fields
+function fromApiResponse(patient) {
+  return {
+    id: patient.id,
+    patientId: patient.patient_id,
+    firstName: patient.first_name,
+    lastName: patient.last_name,
+    age: patient.age,
+    gender: patient.gender,
+    dob: patient.dob || "",
+    contact: patient.contact,
+    email: patient.email || "",
+    address: patient.address || "",
+    doctor: "",
+    department: patient.department || "",
+    status: patient.status,
+  };
 }
 
 export default function Patients() {
-  const [patients, setPatients] = useState(initialPatients);
+  const [patients, setPatients] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-
-  // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [editingPatient, setEditingPatient] = useState(null);
 
-  // Filter patients based on search input
+  // Load patients from backend on mount
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/immutability
+    loadPatients();
+  }, []);
+
+  const loadPatients = async () => {
+    try {
+      setLoading(true);
+      const data = await patientService.getAll();
+      setPatients(data.map(fromApiResponse));
+    } catch {
+      toast.error("Failed to load patients");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return patients.filter(
       (p) =>
         `${p.firstName} ${p.lastName}`.toLowerCase().includes(q) ||
-        p.id.toLowerCase().includes(q) ||
+        (p.patientId || "").toLowerCase().includes(q) ||
         p.contact.includes(q) ||
-        p.department.toLowerCase().includes(q),
+        (p.department || "").toLowerCase().includes(q),
     );
   }, [patients, search]);
 
-  // Paginate the filtered results
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const paginated = filtered.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE,
   );
 
-  // Reset to page 1 whenever search changes
   const handleSearch = (e) => {
     setSearch(e.target.value);
     setCurrentPage(1);
   };
 
-  // Add new patient
-  const handleAdd = (formData) => {
-    const newPatient = {
-      ...formData,
-      id: generatePatientId(patients),
-    };
-    setPatients((prev) => [newPatient, ...prev]);
-    setShowAddModal(false);
-    toast.success(
-      `${formData.firstName} ${formData.lastName} added successfully`,
-    );
+  const handleAdd = async (formData) => {
+    try {
+      await patientService.create(toApiPayload(formData));
+      toast.success(
+        `${formData.firstName} ${formData.lastName} added successfully`,
+      );
+      setShowAddModal(false);
+      loadPatients();
+    } catch (err) {
+      const msg = err.response?.data?.detail || "Failed to add patient";
+      toast.error(msg);
+    }
   };
 
-  // Open edit modal pre-filled
   const handleEditOpen = (patient) => {
     setEditingPatient(patient);
     setShowAddModal(true);
   };
 
-  // Save edits
-  const handleEdit = (formData) => {
-    setPatients((prev) =>
-      prev.map((p) =>
-        p.id === editingPatient.id ? { ...formData, id: editingPatient.id } : p,
-      ),
-    );
-    setShowAddModal(false);
-    setEditingPatient(null);
-    toast.success("Patient record updated successfully");
+  const handleEdit = async (formData) => {
+    try {
+      await patientService.update(editingPatient.id, toApiPayload(formData));
+      toast.success("Patient record updated successfully");
+      setShowAddModal(false);
+      setEditingPatient(null);
+      loadPatients();
+    } catch (err) {
+      const msg = err.response?.data?.detail || "Failed to update patient";
+      toast.error(msg);
+    }
   };
 
-  // Open delete confirmation
   const handleDeleteOpen = (patient) => {
     setSelectedPatient(patient);
     setShowDeleteModal(true);
   };
 
-  // Confirm delete
-  const handleDeleteConfirm = () => {
-    setPatients((prev) => prev.filter((p) => p.id !== selectedPatient.id));
-    setShowDeleteModal(false);
-    toast.success(
-      `${selectedPatient.firstName} ${selectedPatient.lastName} removed`,
-    );
-    setSelectedPatient(null);
+  const handleDeleteConfirm = async () => {
+    try {
+      await patientService.delete(selectedPatient.id);
+      toast.success(
+        `${selectedPatient.firstName} ${selectedPatient.lastName} removed`,
+      );
+      setShowDeleteModal(false);
+      setSelectedPatient(null);
+      loadPatients();
+    } catch {
+      toast.error("Failed to delete patient");
+    }
   };
 
-  // Open view modal
   const handleView = (patient) => {
     setSelectedPatient(patient);
     setShowViewModal(true);
   };
 
-  // Close add/edit modal and reset editing state
   const handleModalClose = () => {
     setShowAddModal(false);
     setEditingPatient(null);
   };
 
-  // Table column definitions
   const columns = [
     {
       key: "id",
@@ -238,33 +165,36 @@ export default function Patients() {
       width: "220px",
       render: (row) => (
         <div>
-          <p className="font-medium text-gray-900 dark:text-white">
+          <p className="font-medium text-gray-900 dark:text-white text-sm">
             {row.firstName} {row.lastName}
           </p>
-          <p className="text-xs text-gray-400 mt-0.5">{row.id}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{row.patientId}</p>
         </div>
       ),
     },
     {
       key: "contact",
       label: "Contact",
-      render: (row) => <span className="font-mono text-xs">{row.contact}</span>,
+      render: (row) => (
+        <span className="font-mono text-xs text-gray-700 dark:text-gray-300">
+          {row.contact}
+        </span>
+      ),
     },
     {
       key: "doctor",
-      label: "Doctor",
+      label: "Department",
       render: (row) => (
-        <div>
-          <p className="text-sm">{row.doctor || "—"}</p>
-          <p className="text-xs text-gray-400">{row.department || "—"}</p>
-        </div>
+        <span className="text-sm text-gray-600 dark:text-gray-400">
+          {row.department || "—"}
+        </span>
       ),
     },
     {
       key: "age",
       label: "Age / Gender",
       render: (row) => (
-        <span className="text-sm">
+        <span className="text-sm text-gray-700 dark:text-gray-300">
           {row.age} · {row.gender}
         </span>
       ),
@@ -282,22 +212,19 @@ export default function Patients() {
         <div className="flex items-center gap-1">
           <button
             onClick={() => handleView(row)}
-            title="View details"
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-secondary transition-colors"
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-blue-500 transition-colors"
           >
             <Eye size={13} />
           </button>
           <button
             onClick={() => handleEditOpen(row)}
-            title="Edit patient"
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-primary transition-colors"
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-[#0F4C81] transition-colors"
           >
             <Pencil size={13} />
           </button>
           <button
             onClick={() => handleDeleteOpen(row)}
-            title="Delete patient"
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-danger transition-colors"
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500 transition-colors"
           >
             <Trash2 size={13} />
           </button>
@@ -307,18 +234,21 @@ export default function Patients() {
   ];
 
   return (
-    <div className="page-container">
-      {/* Header */}
+    <div className="p-6 space-y-5">
       <PageHeader
         title="Patients"
-        subtitle={`${filtered.length} patient${filtered.length !== 1 ? "s" : ""} found`}
+        subtitle={
+          loading
+            ? "Loading..."
+            : `${filtered.length} patient${filtered.length !== 1 ? "s" : ""} found`
+        }
         action={
           <button
             onClick={() => {
               setEditingPatient(null);
               setShowAddModal(true);
             }}
-            className="btn-primary flex items-center gap-2"
+            className="flex items-center gap-2 bg-[#0F4C81] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#1a5f9e] transition-colors"
           >
             <Plus size={15} />
             Add Patient
@@ -326,32 +256,36 @@ export default function Patients() {
         }
       />
 
-      {/* Search bar */}
       <div className="relative max-w-sm">
         <Search
           size={14}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
         />
         <input
           type="text"
           value={search}
           onChange={handleSearch}
           placeholder="Search by name, ID or contact..."
-          className="input-field pl-9"
+          className="w-full h-10 pl-9 pr-3 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
         />
       </div>
 
-      {/* Table */}
-      <DataTable
-        columns={columns}
-        data={paginated}
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onPageChange={setCurrentPage}
-        emptyMessage="No patients found. Try a different search or add a new patient."
-      />
+      {loading ? (
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-12 text-center">
+          <div className="animate-spin w-8 h-8 border-2 border-[#0F4C81] border-t-transparent rounded-full mx-auto mb-3" />
+          <p className="text-sm text-gray-400">Loading patients...</p>
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={paginated}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          emptyMessage="No patients found. Add your first patient to get started."
+        />
+      )}
 
-      {/* Add / Edit Modal */}
       <Modal
         isOpen={showAddModal}
         onClose={handleModalClose}
@@ -365,7 +299,6 @@ export default function Patients() {
         />
       </Modal>
 
-      {/* Delete Confirmation Modal */}
       <Modal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
@@ -374,7 +307,7 @@ export default function Patients() {
       >
         <div className="text-center">
           <div className="w-12 h-12 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-3">
-            <Trash2 size={20} className="text-danger" />
+            <Trash2 size={20} className="text-red-500" />
           </div>
           <p className="text-sm text-gray-700 dark:text-gray-300 mb-1">
             Are you sure you want to delete
@@ -383,23 +316,25 @@ export default function Patients() {
             {selectedPatient?.firstName} {selectedPatient?.lastName}
           </p>
           <p className="text-xs text-gray-400 mb-5">
-            {selectedPatient?.id} · This action cannot be undone.
+            This action cannot be undone.
           </p>
           <div className="flex gap-2">
             <button
               onClick={() => setShowDeleteModal(false)}
-              className="btn-secondary flex-1"
+              className="flex-1 px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
             >
               Cancel
             </button>
-            <button onClick={handleDeleteConfirm} className="btn-danger flex-1">
+            <button
+              onClick={handleDeleteConfirm}
+              className="flex-1 px-4 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium"
+            >
               Yes, Delete
             </button>
           </div>
         </div>
       </Modal>
 
-      {/* View Details Modal */}
       <Modal
         isOpen={showViewModal}
         onClose={() => setShowViewModal(false)}
@@ -409,14 +344,16 @@ export default function Patients() {
         {selectedPatient && (
           <div className="space-y-4">
             <div className="flex items-center gap-3 pb-4 border-b border-gray-100 dark:border-gray-800">
-              <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-white text-lg font-semibold">
+              <div className="w-12 h-12 rounded-full bg-[#0F4C81] flex items-center justify-center text-white text-lg font-semibold">
                 {selectedPatient.firstName.charAt(0)}
               </div>
               <div>
                 <p className="font-semibold text-gray-900 dark:text-white">
                   {selectedPatient.firstName} {selectedPatient.lastName}
                 </p>
-                <p className="text-xs text-gray-400">{selectedPatient.id}</p>
+                <p className="text-xs text-gray-400">
+                  {selectedPatient.patientId}
+                </p>
               </div>
               <div className="ml-auto">
                 <Badge status={selectedPatient.status} />
@@ -429,7 +366,6 @@ export default function Patients() {
                 { label: "Date of Birth", value: selectedPatient.dob || "—" },
                 { label: "Contact", value: selectedPatient.contact },
                 { label: "Email", value: selectedPatient.email || "—" },
-                { label: "Doctor", value: selectedPatient.doctor || "—" },
                 {
                   label: "Department",
                   value: selectedPatient.department || "—",

@@ -17,9 +17,11 @@ import {
 } from "recharts";
 import StatCard from "../components/common/StatCard";
 import Badge from "../components/common/Badge";
-import "../components/common/PageHeader";
+import { dashboardService } from "../services/dashboardService";
+import api from "../services/api";
 
-// Mock data — replaced with real API in Phase 10
+// Weekly chart still uses mock data — real chart data requires
+// a more complex query we add in a future enhancement
 const weeklyData = [
   { day: "Mon", admissions: 12 },
   { day: "Tue", admissions: 19 },
@@ -30,50 +32,6 @@ const weeklyData = [
   { day: "Sun", admissions: 9 },
 ];
 
-const recentAppointments = [
-  {
-    id: "APT-00001",
-    patient: "Aarav Sharma",
-    doctor: "Dr. Priya Sharma",
-    date: "2025-06-02",
-    time: "10:00 AM",
-    status: "Completed",
-  },
-  {
-    id: "APT-00002",
-    patient: "Sita Patel",
-    doctor: "Dr. Ramesh Bandaru",
-    date: "2025-06-02",
-    time: "11:30 AM",
-    status: "Scheduled",
-  },
-  {
-    id: "APT-00003",
-    patient: "Ravi Kumar",
-    doctor: "Dr. Ananya Iyer",
-    date: "2025-06-02",
-    time: "02:00 PM",
-    status: "Cancelled",
-  },
-  {
-    id: "APT-00004",
-    patient: "Meena Reddy",
-    doctor: "Dr. Kiran Rao",
-    date: "2025-06-02",
-    time: "03:30 PM",
-    status: "Scheduled",
-  },
-  {
-    id: "APT-00005",
-    patient: "Arjun Nair",
-    doctor: "Dr. Priya Sharma",
-    date: "2025-06-02",
-    time: "04:00 PM",
-    status: "Completed",
-  },
-];
-
-// Greeting based on time of day
 function getGreeting() {
   const hour = new Date().getHours();
   if (hour < 12) return "Good morning";
@@ -81,13 +39,12 @@ function getGreeting() {
   return "Good evening";
 }
 
-// Custom tooltip for the bar chart
 function CustomTooltip({ active, payload, label }) {
   if (active && payload && payload.length) {
     return (
       <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg px-3 py-2 shadow-lg">
         <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
-        <p className="text-sm font-semibold text-primary">
+        <p className="text-sm font-semibold text-[#0F4C81]">
           {payload[0].value} admissions
         </p>
       </div>
@@ -97,24 +54,46 @@ function CustomTooltip({ active, payload, label }) {
 }
 
 export default function Dashboard() {
-  const [currentDate, setCurrentDate] = useState("");
+  const [stats, setStats] = useState({
+    total_patients: 0,
+    total_doctors: 0,
+    total_appointments: 0,
+    today_appointments: 0,
+  });
+  const [recentAppointments, setRecentAppointments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const currentDate = new Date().toLocaleDateString("en-IN", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      // Fetch stats and recent appointments in parallel
+      const [statsData, appointmentsData] = await Promise.all([
+        dashboardService.getStats(),
+        api.get("/appointments/").then((r) => r.data.slice(0, 5)),
+      ]);
+      setStats(statsData);
+      setRecentAppointments(appointmentsData);
+    } catch (err) {
+      console.error("Dashboard load error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const now = new Date();
+    // currentDate is initialized lazily to avoid synchronous setState in effect
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setCurrentDate(
-      now.toLocaleDateString("en-IN", {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      }),
-    );
+    loadData();
   }, []);
 
   return (
-    <div className="page-container">
-      {/* Page header */}
+    <div className="p-6 space-y-6">
       <div>
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
           {getGreeting()}, Admin
@@ -128,42 +107,41 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
           label="Total Patients"
-          value="248"
-          change="↑ 12 registered this week"
+          value={loading ? "—" : stats.total_patients}
+          change="Live from database"
           changeType="positive"
           icon={Users}
-          iconBg="bg-primary"
+          iconBg="bg-[#0F4C81]"
         />
         <StatCard
           label="Total Doctors"
-          value="34"
-          change="3 currently on leave"
+          value={loading ? "—" : stats.total_doctors}
+          change="Active medical staff"
           changeType="neutral"
           icon={Stethoscope}
-          iconBg="bg-secondary"
+          iconBg="bg-[#4A90E2]"
         />
         <StatCard
           label="Appointments"
-          value="91"
-          change="↑ 7 scheduled today"
+          value={loading ? "—" : stats.total_appointments}
+          change="All time total"
           changeType="positive"
           icon={Calendar}
-          iconBg="bg-accent"
+          iconBg="bg-[#22C55E]"
         />
         <StatCard
           label="Today's Visits"
-          value="18"
-          change="↑ 4 more than yesterday"
+          value={loading ? "—" : stats.today_appointments}
+          change="Scheduled for today"
           changeType="positive"
           icon={Activity}
           iconBg="bg-purple-500"
         />
       </div>
 
-      {/* Chart + Recent Appointments */}
+      {/* Chart + Recent appointments */}
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
-        {/* Weekly admissions chart — takes 3 of 5 columns */}
-        <div className="xl:col-span-3 card p-5">
+        <div className="xl:col-span-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5">
           <div className="flex items-center justify-between mb-5">
             <div>
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -173,7 +151,7 @@ export default function Dashboard() {
                 Patient admissions over the last 7 days
               </p>
             </div>
-            <div className="flex items-center gap-1.5 text-xs text-accent font-medium">
+            <div className="flex items-center gap-1.5 text-xs text-[#22C55E] font-medium">
               <TrendingUp size={13} />
               +18% this week
             </div>
@@ -213,82 +191,55 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </div>
 
-        {/* Recent appointments — takes 2 of 5 columns */}
-        <div className="xl:col-span-2 card p-5">
+        {/* Recent appointments */}
+        <div className="xl:col-span-2 bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
               Recent Appointments
             </h3>
             <a
               href="/appointments"
-              className="text-xs text-secondary hover:underline"
+              className="text-xs text-[#4A90E2] hover:underline"
             >
               View all
             </a>
           </div>
-          <div className="space-y-3">
-            {recentAppointments.map((apt) => (
-              <div
-                key={apt.id}
-                className="flex items-start justify-between py-2 border-b border-gray-50 dark:border-gray-800 last:border-0"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                    {apt.patient}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
-                    {apt.doctor} · {apt.time}
-                  </p>
-                </div>
-                <div className="ml-3 flex-shrink-0">
-                  <Badge status={apt.status} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
 
-      {/* Quick stats row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="card p-4 flex items-center gap-4">
-          <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Users size={18} className="text-accent" />
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Active Patients
+          {loading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="animate-pulse">
+                  <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded w-3/4 mb-1" />
+                  <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded w-1/2" />
+                </div>
+              ))}
+            </div>
+          ) : recentAppointments.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-6">
+              No appointments yet
             </p>
-            <p className="text-lg font-semibold text-gray-900 dark:text-white">
-              186
-            </p>
-          </div>
-        </div>
-        <div className="card p-4 flex items-center gap-4">
-          <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Stethoscope size={18} className="text-secondary" />
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Active Doctors
-            </p>
-            <p className="text-lg font-semibold text-gray-900 dark:text-white">
-              31
-            </p>
-          </div>
-        </div>
-        <div className="card p-4 flex items-center gap-4">
-          <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Calendar size={18} className="text-purple-500" />
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              This Month
-            </p>
-            <p className="text-lg font-semibold text-gray-900 dark:text-white">
-              312 apts
-            </p>
-          </div>
+          ) : (
+            <div className="space-y-3">
+              {recentAppointments.map((apt) => (
+                <div
+                  key={apt.id}
+                  className="flex items-start justify-between py-2 border-b border-gray-50 dark:border-gray-800 last:border-0"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                      {apt.patient_id}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      {apt.appointment_date} · {apt.appointment_id}
+                    </p>
+                  </div>
+                  <div className="ml-3 flex-shrink-0">
+                    <Badge status={apt.status} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

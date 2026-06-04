@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { useState, useMemo } from "react";
 import {
   Plus,
@@ -14,6 +15,8 @@ import Badge from "../components/common/Badge";
 import Modal from "../components/common/Modal";
 import AppointmentForm from "../components/forms/AppointmentForm";
 import toast from "react-hot-toast";
+import { useEffect } from "react";
+import { appointmentService } from "../services/appointmentService";
 
 // Mock data — replaced with real API in Phase 10
 const initialAppointments = [
@@ -122,7 +125,8 @@ function formatDate(date) {
 }
 
 export default function Appointments() {
-  const [appointments, setAppointments] = useState(initialAppointments);
+  const [appointments, setAppointments] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
@@ -130,6 +134,34 @@ export default function Appointments() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedApt, setSelectedApt] = useState(null);
   const [editingApt, setEditingApt] = useState(null);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/immutability
+    loadAppointments();
+  }, []);
+
+  const loadAppointments = async () => {
+    try {
+      setLoading(true);
+      const data = await appointmentService.getAll();
+      // Map API response to frontend field names
+      const mapped = data.map((a) => ({
+        id: a.id,
+        aptId: a.appointment_id,
+        patientName: `Patient #${a.patient_id}`,
+        doctorName: `Doctor #${a.doctor_id}`,
+        date: a.appointment_date,
+        time: a.appointment_time,
+        reason: a.reason || "",
+        status: a.status,
+      }));
+      setAppointments(mapped);
+    } catch (err) {
+      toast.error("Failed to load appointments");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Filter by search + status chip
   const filtered = useMemo(() => {
@@ -160,11 +192,22 @@ export default function Appointments() {
     setCurrentPage(1);
   };
 
-  const handleAdd = (formData) => {
-    const newApt = { ...formData, id: generateAptId(appointments) };
-    setAppointments((prev) => [newApt, ...prev]);
-    setShowFormModal(false);
-    toast.success("Appointment booked successfully");
+  const handleAdd = async (formData) => {
+    try {
+      await appointmentService.create({
+        patient_id: 1, // Phase 11 enhancement: use real patient selector
+        doctor_id: 1, // Phase 11 enhancement: use real doctor selector
+        appointment_date: formData.date,
+        appointment_time: formData.time,
+        reason: formData.reason,
+        status: formData.status,
+      });
+      toast.success("Appointment booked successfully");
+      setShowFormModal(false);
+      loadAppointments();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to book appointment");
+    }
   };
 
   const handleEditOpen = (apt) => {
@@ -172,15 +215,21 @@ export default function Appointments() {
     setShowFormModal(true);
   };
 
-  const handleEdit = (formData) => {
-    setAppointments((prev) =>
-      prev.map((a) =>
-        a.id === editingApt.id ? { ...formData, id: editingApt.id } : a,
-      ),
-    );
-    setShowFormModal(false);
-    setEditingApt(null);
-    toast.success("Appointment updated successfully");
+  const handleEdit = async (formData) => {
+    try {
+      await appointmentService.update(editingApt.id, {
+        appointment_date: formData.date,
+        appointment_time: formData.time,
+        reason: formData.reason,
+        status: formData.status,
+      });
+      toast.success("Appointment updated successfully");
+      setShowFormModal(false);
+      setEditingApt(null);
+      loadAppointments();
+    } catch (err) {
+      toast.error("Failed to update appointment");
+    }
   };
 
   const handleDeleteOpen = (apt) => {
@@ -188,25 +237,33 @@ export default function Appointments() {
     setShowDeleteModal(true);
   };
 
-  const handleDeleteConfirm = () => {
-    setAppointments((prev) => prev.filter((a) => a.id !== selectedApt.id));
-    setShowDeleteModal(false);
-    toast.success(`${selectedApt.id} removed`);
-    setSelectedApt(null);
+  const handleDeleteConfirm = async () => {
+    try {
+      await appointmentService.delete(selectedApt.id);
+      toast.success(`${selectedApt.aptId} removed`);
+      setShowDeleteModal(false);
+      setSelectedApt(null);
+      loadAppointments();
+    } catch (err) {
+      toast.error("Failed to delete appointment");
+    }
   };
 
   // Quick status toggle directly from the table row
-  const handleStatusToggle = (apt) => {
+  const handleStatusToggle = async (apt) => {
     const cycle = {
       Scheduled: "Completed",
       Completed: "Cancelled",
       Cancelled: "Scheduled",
     };
     const newStatus = cycle[apt.status];
-    setAppointments((prev) =>
-      prev.map((a) => (a.id === apt.id ? { ...a, status: newStatus } : a)),
-    );
-    toast.success(`${apt.id} marked as ${newStatus}`);
+    try {
+      await appointmentService.update(apt.id, { status: newStatus });
+      loadAppointments();
+      toast.success(`Marked as ${newStatus}`);
+    } catch (err) {
+      toast.error("Failed to update status");
+    }
   };
 
   const handleFormModalClose = () => {
