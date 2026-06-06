@@ -389,7 +389,17 @@ export default function Settings() {
             </ul>
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setPasswords({ current: "", newPass: "", confirm: "" });
+                setPasswordErrors({});
+              }}
+              className="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
             <button
               type="submit"
               className="px-4 py-2 bg-[#0F4C81] text-white text-sm font-medium rounded-lg hover:bg-[#1a5f9e] transition-colors"

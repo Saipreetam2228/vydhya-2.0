@@ -30,7 +30,15 @@ export default function DoctorForm({ initial = null, onSubmit, onCancel }) {
   useEffect(() => {
     if (initial) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setForm(initial);
+      setForm({
+        firstName: initial.firstName || "",
+        lastName: initial.lastName || "",
+        specialty: initial.specialty || "",
+        experience: String(initial.experience || ""),
+        contact: initial.contact || "",
+        email: initial.email || "",
+        status: initial.status || "Active",
+      });
     } else {
       setForm(emptyForm);
     }

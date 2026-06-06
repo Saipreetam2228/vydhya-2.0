@@ -21,9 +21,25 @@ export default function PatientForm({ initial = null, onSubmit, onCancel }) {
 
   // If editing, pre-fill the form with existing patient data
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (initial) setForm(initial);
-    else setForm(emptyForm);
+    if (initial) {
+      // Spread all fields including the numeric id
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setForm({
+        firstName: initial.firstName || "",
+        lastName: initial.lastName || "",
+        age: String(initial.age || ""),
+        gender: initial.gender || "",
+        dob: initial.dob || "",
+        contact: initial.contact || "",
+        email: initial.email || "",
+        address: initial.address || "",
+        doctor: initial.doctor || "",
+        department: initial.department || "",
+        status: initial.status || "Active",
+      });
+    } else {
+      setForm(emptyForm);
+    }
   }, [initial]);
 
   const handleChange = (e) => {

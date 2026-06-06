@@ -12,12 +12,12 @@ const ITEMS_PER_PAGE = 5;
 
 function fromApiResponse(doctor) {
   return {
-    id: doctor.id,
-    doctorId: doctor.doctor_id,
+    id: doctor.id, // numeric DB id
+    doctorId: doctor.doctor_id, // human-readable DOC-00001
     firstName: doctor.first_name,
     lastName: doctor.last_name,
     specialty: doctor.specialty,
-    experience: doctor.experience_years,
+    experience: String(doctor.experience_years || ""),
     contact: doctor.contact,
     email: doctor.email || "",
     status: doctor.status,
@@ -114,7 +114,7 @@ export default function Doctors() {
   };
 
   const handleEditOpen = (doctor) => {
-    setEditingDoctor(doctor);
+    setEditingDoctor({ ...doctor });
     setShowFormModal(true);
   };
 
@@ -126,6 +126,7 @@ export default function Doctors() {
       setEditingDoctor(null);
       loadDoctors();
     } catch (err) {
+      console.error("Edit error:", err.response);
       toast.error(err.response?.data?.detail || "Failed to update doctor");
     }
   };
@@ -144,8 +145,8 @@ export default function Doctors() {
       setShowDeleteModal(false);
       setSelectedDoctor(null);
       loadDoctors();
-      // eslint-disable-next-line no-unused-vars
     } catch (err) {
+      console.error("Delete error:", err.response);
       toast.error("Failed to delete doctor");
     }
   };

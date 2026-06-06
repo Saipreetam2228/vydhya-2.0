@@ -30,11 +30,11 @@ function toApiPayload(form) {
 // Maps backend response fields to frontend form fields
 function fromApiResponse(patient) {
   return {
-    id: patient.id,
-    patientId: patient.patient_id,
+    id: patient.id, // numeric DB id — used for API calls
+    patientId: patient.patient_id, // human-readable PAT-00001
     firstName: patient.first_name,
     lastName: patient.last_name,
-    age: patient.age,
+    age: String(patient.age || ""),
     gender: patient.gender,
     dob: patient.dob || "",
     contact: patient.contact,
@@ -112,18 +112,21 @@ export default function Patients() {
   };
 
   const handleEditOpen = (patient) => {
-    setEditingPatient(patient);
+    // Pass the full patient object including the numeric id
+    setEditingPatient({ ...patient });
     setShowAddModal(true);
   };
 
   const handleEdit = async (formData) => {
     try {
+      // editingPatient.id is the numeric database ID
       await patientService.update(editingPatient.id, toApiPayload(formData));
       toast.success("Patient record updated successfully");
       setShowAddModal(false);
       setEditingPatient(null);
       loadPatients();
     } catch (err) {
+      console.error("Edit error:", err.response);
       const msg = err.response?.data?.detail || "Failed to update patient";
       toast.error(msg);
     }
@@ -136,6 +139,7 @@ export default function Patients() {
 
   const handleDeleteConfirm = async () => {
     try {
+      // selectedPatient.id is the numeric database ID
       await patientService.delete(selectedPatient.id);
       toast.success(
         `${selectedPatient.firstName} ${selectedPatient.lastName} removed`,
@@ -143,7 +147,8 @@ export default function Patients() {
       setShowDeleteModal(false);
       setSelectedPatient(null);
       loadPatients();
-    } catch {
+    } catch (err) {
+      console.error("Delete error:", err.response);
       toast.error("Failed to delete patient");
     }
   };

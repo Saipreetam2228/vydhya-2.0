@@ -42,9 +42,9 @@ def get_appointment_count(db: Session = Depends(get_db)):
 
 
 @router.get("/{appointment_id}", response_model=AppointmentResponse)
-def get_appointment(appointment_id: str, db: Session = Depends(get_db)):
+def get_appointment(appointment_id: int, db: Session = Depends(get_db)):
     apt = db.query(Appointment).filter(
-        Appointment.appointment_id == appointment_id
+        Appointment.id == appointment_id
     ).first()
     if not apt:
         raise HTTPException(status_code=404, detail="Appointment not found")
@@ -65,12 +65,12 @@ def create_appointment(data: AppointmentCreate, db: Session = Depends(get_db)):
 
 @router.put("/{appointment_id}", response_model=AppointmentResponse)
 def update_appointment(
-    appointment_id: str,
+    appointment_id: int,
     data: AppointmentUpdate,
     db: Session = Depends(get_db),
 ):
     apt = db.query(Appointment).filter(
-        Appointment.appointment_id == appointment_id
+        Appointment.id == appointment_id
     ).first()
     if not apt:
         raise HTTPException(status_code=404, detail="Appointment not found")
@@ -84,9 +84,9 @@ def update_appointment(
 
 
 @router.delete("/{appointment_id}", status_code=204)
-def delete_appointment(appointment_id: str, db: Session = Depends(get_db)):
+def delete_appointment(appointment_id: int, db: Session = Depends(get_db)):
     apt = db.query(Appointment).filter(
-        Appointment.appointment_id == appointment_id
+        Appointment.id == appointment_id
     ).first()
     if not apt:
         raise HTTPException(status_code=404, detail="Appointment not found")

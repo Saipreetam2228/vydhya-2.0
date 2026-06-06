@@ -45,10 +45,10 @@ def get_patient_count(db: Session = Depends(get_db)):
 
 
 @router.get("/{patient_id}", response_model=PatientResponse)
-def get_patient(patient_id: str, db: Session = Depends(get_db)):
-    """Get a single patient by their PAT-XXXXX ID."""
+def get_patient(patient_id: int, db: Session = Depends(get_db)):
+    """Get a single patient by their numeric database ID."""
     patient = db.query(Patient).filter(
-        Patient.patient_id == patient_id
+        Patient.id == patient_id
     ).first()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
@@ -80,11 +80,11 @@ def create_patient(data: PatientCreate, db: Session = Depends(get_db)):
 
 @router.put("/{patient_id}", response_model=PatientResponse)
 def update_patient(
-    patient_id: str, data: PatientUpdate, db: Session = Depends(get_db)
+    patient_id: int, data: PatientUpdate, db: Session = Depends(get_db)
 ):
     """Update an existing patient record."""
     patient = db.query(Patient).filter(
-        Patient.patient_id == patient_id
+        Patient.id == patient_id
     ).first()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
@@ -98,10 +98,10 @@ def update_patient(
 
 
 @router.delete("/{patient_id}", status_code=204)
-def delete_patient(patient_id: str, db: Session = Depends(get_db)):
+def delete_patient(patient_id: int, db: Session = Depends(get_db)):
     """Delete a patient and all their appointments."""
     patient = db.query(Patient).filter(
-        Patient.patient_id == patient_id
+        Patient.id == patient_id
     ).first()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")

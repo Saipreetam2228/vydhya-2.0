@@ -14,23 +14,12 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Cell,
 } from "recharts";
 import StatCard from "../components/common/StatCard";
 import Badge from "../components/common/Badge";
 import { dashboardService } from "../services/dashboardService";
 import api from "../services/api";
-
-// Weekly chart still uses mock data — real chart data requires
-// a more complex query we add in a future enhancement
-const weeklyData = [
-  { day: "Mon", admissions: 12 },
-  { day: "Tue", admissions: 19 },
-  { day: "Wed", admissions: 15 },
-  { day: "Thu", admissions: 27 },
-  { day: "Fri", admissions: 22 },
-  { day: "Sat", admissions: 18 },
-  { day: "Sun", admissions: 9 },
-];
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -39,14 +28,50 @@ function getGreeting() {
   return "Good evening";
 }
 
+// Builds the last-7-days array with real admission counts
+function buildWeeklyData(patients) {
+  const days = [];
+  const today = new Date();
+
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+
+    const label = d.toLocaleDateString("en-IN", { weekday: "short" });
+    const fullDate = d.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+    const dateStr = d.toISOString().split("T")[0]; // YYYY-MM-DD
+
+    // Count patients whose created_at matches this date
+    const count = patients.filter((p) => {
+      if (!p.created_at) return false;
+      return p.created_at.split("T")[0] === dateStr;
+    }).length;
+
+    days.push({
+      day: label,
+      fullDate,
+      admissions: count,
+      isToday: i === 0,
+    });
+  }
+  return days;
+}
+
+// Custom tooltip showing exact date + count
 function CustomTooltip({ active, payload, label }) {
   if (active && payload && payload.length) {
+    const data = payload[0].payload;
     return (
       <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg px-3 py-2 shadow-lg">
-        <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
+        <p className="text-xs text-gray-400 mb-0.5">{data.fullDate}</p>
         <p className="text-sm font-semibold text-[#0F4C81]">
-          {payload[0].value} admissions
+          {data.admissions} admission{data.admissions !== 1 ? "s" : ""}
         </p>
+        {data.isToday && <p className="text-xs text-[#22C55E] mt-0.5">Today</p>}
       </div>
     );
   }
@@ -60,25 +85,40 @@ export default function Dashboard() {
     total_appointments: 0,
     today_appointments: 0,
   });
+  const [weeklyData, setWeeklyData] = useState([]);
   const [recentAppointments, setRecentAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const currentDate = new Date().toLocaleDateString("en-IN", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  const [currentDate, setCurrentDate] = useState("");
+
+  useEffect(() => {
+    setCurrentDate(
+      new Date().toLocaleDateString("en-IN", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }),
+    );
+    loadData();
+
+    // Refresh every 60 seconds so chart stays live
+    const interval = setInterval(loadData, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      // Fetch stats and recent appointments in parallel
-      const [statsData, appointmentsData] = await Promise.all([
+      const [statsData, appointmentsData, patientsData] = await Promise.all([
         dashboardService.getStats(),
         api.get("/appointments/").then((r) => r.data.slice(0, 5)),
+        api.get("/patients/").then((r) => r.data),
       ]);
       setStats(statsData);
       setRecentAppointments(appointmentsData);
+
+      // Build live weekly chart from real patient created_at dates
+      setWeeklyData(buildWeeklyData(patientsData));
     } catch (err) {
       console.error("Dashboard load error:", err);
     } finally {
@@ -86,14 +126,11 @@ export default function Dashboard() {
     }
   };
 
-  useEffect(() => {
-    // currentDate is initialized lazily to avoid synchronous setState in effect
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadData();
-  }, []);
+  const totalThisWeek = weeklyData.reduce((sum, d) => sum + d.admissions, 0);
 
   return (
     <div className="p-6 space-y-6">
+      {/* Greeting */}
       <div>
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
           {getGreeting()}, Admin
@@ -141,6 +178,7 @@ export default function Dashboard() {
 
       {/* Chart + Recent appointments */}
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
+        {/* Live weekly admissions chart */}
         <div className="xl:col-span-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5">
           <div className="flex items-center justify-between mb-5">
             <div>
@@ -148,47 +186,83 @@ export default function Dashboard() {
                 Weekly Admissions
               </h3>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                Patient admissions over the last 7 days
+                Live patient registrations — last 7 days
               </p>
             </div>
-            <div className="flex items-center gap-1.5 text-xs text-[#22C55E] font-medium">
-              <TrendingUp size={13} />
-              +18% this week
+            <div className="text-right">
+              <div className="flex items-center gap-1.5 text-xs text-[#22C55E] font-medium justify-end">
+                <TrendingUp size={13} />
+                {totalThisWeek} this week
+              </div>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Auto-refreshes every 60s
+              </p>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart
-              data={weeklyData}
-              margin={{ top: 0, right: 0, left: -20, bottom: 0 }}
-            >
-              <CartesianGrid
-                strokeDasharray="3 3"
-                stroke="#f0f0f0"
-                vertical={false}
-              />
-              <XAxis
-                dataKey="day"
-                tick={{ fontSize: 11, fill: "#9ca3af" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 11, fill: "#9ca3af" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip
-                content={<CustomTooltip />}
-                cursor={{ fill: "#f8fafc" }}
-              />
-              <Bar
-                dataKey="admissions"
-                fill="#0F4C81"
-                radius={[4, 4, 0, 0]}
-                maxBarSize={40}
-              />
-            </BarChart>
-          </ResponsiveContainer>
+
+          {loading ? (
+            <div className="h-[200px] flex items-center justify-center">
+              <div className="animate-spin w-6 h-6 border-2 border-[#0F4C81] border-t-transparent rounded-full" />
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart
+                data={weeklyData}
+                margin={{ top: 0, right: 0, left: -20, bottom: 0 }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="#f0f0f0"
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="day"
+                  tick={{ fontSize: 11, fill: "#9ca3af" }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: "#9ca3af" }}
+                  axisLine={false}
+                  tickLine={false}
+                  allowDecimals={false}
+                  minTickGap={1}
+                />
+                <Tooltip
+                  content={<CustomTooltip />}
+                  cursor={{ fill: "#f8fafc" }}
+                />
+                <Bar dataKey="admissions" radius={[4, 4, 0, 0]} maxBarSize={40}>
+                  {weeklyData.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={entry.isToday ? "#22C55E" : "#0F4C81"}
+                      opacity={entry.isToday ? 1 : 0.7}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+
+          {/* Legend */}
+          <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-50 dark:border-gray-800">
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded bg-[#0F4C81] opacity-70" />
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                Previous days
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded bg-[#22C55E]" />
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                Today
+              </span>
+            </div>
+            <span className="text-xs text-gray-400 ml-auto">
+              ← Hover bars for exact date
+            </span>
+          </div>
         </div>
 
         {/* Recent appointments */}
@@ -227,10 +301,10 @@ export default function Dashboard() {
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                      {apt.patient_id}
+                      {apt.appointment_id}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                      {apt.appointment_date} · {apt.appointment_id}
+                      {apt.appointment_date}
                     </p>
                   </div>
                   <div className="ml-3 flex-shrink-0">

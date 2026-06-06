@@ -40,8 +40,8 @@ def get_doctor_count(db: Session = Depends(get_db)):
 
 
 @router.get("/{doctor_id}", response_model=DoctorResponse)
-def get_doctor(doctor_id: str, db: Session = Depends(get_db)):
-    doctor = db.query(Doctor).filter(Doctor.doctor_id == doctor_id).first()
+def get_doctor(doctor_id: int, db: Session = Depends(get_db)):
+    doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found")
     return doctor
@@ -61,9 +61,9 @@ def create_doctor(data: DoctorCreate, db: Session = Depends(get_db)):
 
 @router.put("/{doctor_id}", response_model=DoctorResponse)
 def update_doctor(
-    doctor_id: str, data: DoctorUpdate, db: Session = Depends(get_db)
+    doctor_id: int, data: DoctorUpdate, db: Session = Depends(get_db)
 ):
-    doctor = db.query(Doctor).filter(Doctor.doctor_id == doctor_id).first()
+    doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found")
 
@@ -76,8 +76,8 @@ def update_doctor(
 
 
 @router.delete("/{doctor_id}", status_code=204)
-def delete_doctor(doctor_id: str, db: Session = Depends(get_db)):
-    doctor = db.query(Doctor).filter(Doctor.doctor_id == doctor_id).first()
+def delete_doctor(doctor_id: int, db: Session = Depends(get_db)):
+    doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found")
     db.delete(doctor)
