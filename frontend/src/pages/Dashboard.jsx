@@ -62,6 +62,7 @@ function buildWeeklyData(patients) {
 }
 
 // Custom tooltip showing exact date + count
+// eslint-disable-next-line no-unused-vars
 function CustomTooltip({ active, payload, label }) {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
@@ -91,6 +92,7 @@ export default function Dashboard() {
   const [currentDate, setCurrentDate] = useState("");
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentDate(
       new Date().toLocaleDateString("en-IN", {
         weekday: "long",
@@ -99,6 +101,7 @@ export default function Dashboard() {
         day: "numeric",
       }),
     );
+    // eslint-disable-next-line react-hooks/immutability
     loadData();
 
     // Refresh every 60 seconds so chart stays live

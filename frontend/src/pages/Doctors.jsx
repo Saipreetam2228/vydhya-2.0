@@ -85,14 +85,19 @@ export default function Doctors() {
     return doctors.filter(
       (d) =>
         `${d.firstName} ${d.lastName}`.toLowerCase().includes(q) ||
-        d.id.toLowerCase().includes(q) ||
+        d.doctorId.toLowerCase().includes(q) ||
         d.specialty.toLowerCase().includes(q) ||
         d.email.toLowerCase().includes(q),
     );
   }, [doctors, search]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-  const paginated = filtered.slice(
+  const numbered = filtered.map((row, idx) => ({
+    ...row,
+    displayId: `DOC-${String(idx + 1).padStart(5, "0")}`,
+  }));
+
+  const totalPages = Math.max(1, Math.ceil(numbered.length / ITEMS_PER_PAGE));
+  const paginated = numbered.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE,
   );
@@ -179,7 +184,7 @@ export default function Doctors() {
             <p className="font-medium text-gray-900 dark:text-white text-sm">
               Dr. {row.firstName} {row.lastName}
             </p>
-            <p className="text-xs text-gray-400">{row.id}</p>
+            <p className="text-xs text-gray-400">{row.doctorId}</p>
           </div>
         </div>
       ),
@@ -341,8 +346,8 @@ export default function Doctors() {
             Dr. {selectedDoctor?.firstName} {selectedDoctor?.lastName}
           </p>
           <p className="text-xs text-gray-400 mb-5">
-            {selectedDoctor?.id} · {selectedDoctor?.specialty} · This action
-            cannot be undone.
+            {selectedDoctor?.displayId || selectedDoctor?.doctorId} ·{" "}
+            {selectedDoctor?.specialty} · This action cannot be undone.
           </p>
           <div className="flex gap-2">
             <button
@@ -382,7 +387,7 @@ export default function Doctors() {
                   {selectedDoctor.specialty}
                 </p>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  {selectedDoctor.id}
+                  {selectedDoctor.displayId || selectedDoctor.doctorId}
                 </p>
               </div>
               <Badge status={selectedDoctor.status} />

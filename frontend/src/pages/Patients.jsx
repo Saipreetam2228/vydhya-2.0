@@ -86,8 +86,13 @@ export default function Patients() {
     );
   }, [patients, search]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-  const paginated = filtered.slice(
+  const numbered = filtered.map((row, idx) => ({
+    ...row,
+    displayId: `PAT-${String(idx + 1).padStart(5, "0")}`,
+  }));
+
+  const totalPages = Math.max(1, Math.ceil(numbered.length / ITEMS_PER_PAGE));
+  const paginated = numbered.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE,
   );
@@ -173,7 +178,7 @@ export default function Patients() {
           <p className="font-medium text-gray-900 dark:text-white text-sm">
             {row.firstName} {row.lastName}
           </p>
-          <p className="text-xs text-gray-400 mt-0.5">{row.patientId}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{row.displayId}</p>
         </div>
       ),
     },

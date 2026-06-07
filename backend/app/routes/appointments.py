@@ -1,90 +1,92 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List
 from app.core.database import get_db
+from app.core.security import get_current_user
 from app.models.appointment import Appointment
 from app.schemas.appointment import (
-    AppointmentCreate,
-    AppointmentUpdate,
-    AppointmentResponse,
+    AppointmentCreate, AppointmentUpdate, AppointmentResponse
 )
 
 router = APIRouter(prefix="/appointments", tags=["Appointments"])
 
+def _generate_next_serial_id(db: Session, field, prefix: str) -> str:
+    rows = db.query(field).all()
+    max_serial = 0
+    for (value,) in rows:
+        if value and isinstance(value, str) and value.startswith(prefix + "-"):
+            suffix = value.split("-", 1)[1]
+            if suffix.isdigit():
+                max_serial = max(max_serial, int(suffix))
+    return f"{prefix}-{str(max_serial + 1).zfill(5)}"
+
 
 def generate_appointment_id(db: Session) -> str:
-    count = db.query(Appointment).count()
-    return f"APT-{str(count + 1).zfill(5)}"
-
+    return _generate_next_serial_id(db, Appointment.appointment_id, "APT")
 
 @router.get("/", response_model=List[AppointmentResponse])
 def get_appointments(
-    search: Optional[str] = Query(None),
-    status: Optional[str] = Query(None),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
+    _=Depends(get_current_user),
 ):
-    query = db.query(Appointment)
-    if status:
-        query = query.filter(Appointment.status == status)
-    return (
-        query.order_by(Appointment.appointment_date.desc())
-        .offset(skip)
-        .limit(limit)
-        .all()
+    # Return appointments newest first so the latest booked appointment appears at the top
+    return db.query(Appointment).order_by(
+        Appointment.created_at.desc(),
+        Appointment.id.desc()
+    ).all()
+
+@router.post("/", response_model=AppointmentResponse, status_code=status.HTTP_201_CREATED)
+def create_appointment(
+    data: AppointmentCreate,
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    appointment = Appointment(
+        **data.model_dump(),
+        appointment_id=generate_appointment_id(db)
     )
-
-
-@router.get("/count")
-def get_appointment_count(db: Session = Depends(get_db)):
-    return {"count": db.query(Appointment).count()}
-
+    db.add(appointment)
+    db.commit()
+    db.refresh(appointment)
+    return appointment
 
 @router.get("/{appointment_id}", response_model=AppointmentResponse)
-def get_appointment(appointment_id: int, db: Session = Depends(get_db)):
+def get_appointment(
+    appointment_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
     apt = db.query(Appointment).filter(
         Appointment.id == appointment_id
     ).first()
     if not apt:
         raise HTTPException(status_code=404, detail="Appointment not found")
     return apt
-
-
-@router.post("/", response_model=AppointmentResponse, status_code=201)
-def create_appointment(data: AppointmentCreate, db: Session = Depends(get_db)):
-    apt = Appointment(
-        **data.model_dump(),
-        appointment_id=generate_appointment_id(db),
-    )
-    db.add(apt)
-    db.commit()
-    db.refresh(apt)
-    return apt
-
 
 @router.put("/{appointment_id}", response_model=AppointmentResponse)
 def update_appointment(
     appointment_id: int,
     data: AppointmentUpdate,
     db: Session = Depends(get_db),
+    _=Depends(get_current_user),
 ):
     apt = db.query(Appointment).filter(
         Appointment.id == appointment_id
     ).first()
     if not apt:
         raise HTTPException(status_code=404, detail="Appointment not found")
-
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(apt, field, value)
-
     db.commit()
     db.refresh(apt)
     return apt
 
-
-@router.delete("/{appointment_id}", status_code=204)
-def delete_appointment(appointment_id: int, db: Session = Depends(get_db)):
+@router.delete("/{appointment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_appointment(
+    appointment_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
     apt = db.query(Appointment).filter(
         Appointment.id == appointment_id
     ).first()

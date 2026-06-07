@@ -281,6 +281,7 @@ export default function Appointments() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedApt, setSelectedApt] = useState(null);
   const [editingApt, setEditingApt] = useState(null);
+  const [statusDropdownId, setStatusDropdownId] = useState(null);
 
   useEffect(() => {
     loadAll();
@@ -331,8 +332,13 @@ export default function Appointments() {
     });
   }, [appointments, search, statusFilter, patients, doctors]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-  const paginated = filtered.slice(
+  const numbered = filtered.map((row, idx) => ({
+    ...row,
+    displayId: `APT-${String(idx + 1).padStart(5, "0")}`,
+  }));
+
+  const totalPages = Math.max(1, Math.ceil(numbered.length / ITEMS_PER_PAGE));
+  const paginated = numbered.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE,
   );
@@ -405,16 +411,12 @@ export default function Appointments() {
     }
   };
 
-  const handleStatusToggle = async (apt) => {
-    const cycle = {
-      Scheduled: "Completed",
-      Completed: "Cancelled",
-      Cancelled: "Scheduled",
-    };
-    const newStatus = cycle[apt.status];
+  const handleStatusChange = async (apt, newStatus) => {
+    setStatusDropdownId(null);
+    if (apt.status === newStatus) return;
     try {
       await appointmentService.update(apt.id, { status: newStatus });
-      toast.success(`Marked as ${newStatus}`);
+      toast.success(`Status updated to ${newStatus}`);
       loadAll();
     } catch (err) {
       toast.error("Failed to update status");
@@ -447,7 +449,7 @@ export default function Appointments() {
             <Calendar size={13} className="text-[#0F4C81]" />
           </div>
           <span className="text-xs font-mono text-gray-500 dark:text-gray-400">
-            {row.appointment_id}
+            {row.displayId}
           </span>
         </div>
       ),
@@ -497,19 +499,58 @@ export default function Appointments() {
     {
       key: "status",
       label: "Status",
-      render: (row) => (
-        <button
-          onClick={() => handleStatusToggle(row)}
-          title="Click to cycle status"
-          className="flex items-center gap-1 group"
-        >
-          <Badge status={row.status} />
-          <ChevronDown
-            size={11}
-            className="text-gray-300 group-hover:text-gray-500 transition-colors"
-          />
-        </button>
-      ),
+      render: (row) => {
+        const isOpen = statusDropdownId === row.id;
+        const statusColors = {
+          Scheduled:
+            "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300",
+          Completed:
+            "border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300",
+          Cancelled:
+            "border-red-400 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300",
+        };
+        return (
+          <div className="relative inline-block">
+            <button
+              onClick={() => setStatusDropdownId(isOpen ? null : row.id)}
+              className={`flex items-center gap-1 px-2 py-1 rounded border text-xs font-medium transition-colors ${statusColors[row.status] || ""}`}
+            >
+              <span
+                className={
+                  "w-1.5 h-1.5 rounded-full flex-shrink-0 " +
+                  (row.status === "Scheduled"
+                    ? "bg-blue-500"
+                    : row.status === "Completed"
+                      ? "bg-green-500"
+                      : "bg-red-400")
+                }
+              />
+              {row.status}
+              <ChevronDown
+                size={12}
+                className={`transition-transform ${isOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+            {isOpen && (
+              <div className="absolute top-full mt-1 left-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10 min-w-[120px]">
+                {["Scheduled", "Completed", "Cancelled"].map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => handleStatusChange(row, status)}
+                    className={`block w-full text-left px-3 py-2 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                      row.status === status
+                        ? "bg-gray-50 dark:bg-gray-700 font-semibold"
+                        : ""
+                    }`}
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: "actions",
