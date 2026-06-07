@@ -18,8 +18,8 @@ VYDHYA 2.0 is a rebuild of an original Class XII Computer Science project.
 The original was a Python/Tkinter desktop application. This version is a
 deployable, full-stack web application built with a modern tech stack.
 
-**Live Demo:** [vydhya.vercel.app](#) _(added after deployment)_
-**Backend API:** [vydhya-api.onrender.com](#) _(added after deployment)_
+**Live Demo:** [vydhya.vercel.app](#) 
+**Backend API:** [vydhya-api.onrender.com](#) 
 
 ---
 
@@ -67,7 +67,7 @@ npm run dev
 ```bash
 cd backend
 python -m venv venv
-venv\Scripts\activate
+source venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
@@ -94,4 +94,47 @@ Class XII Computer Science project using Python, Tkinter, and MySQL.
 
 ---
 
-_Built with care by [Your Name]_
+_Built with care by [Saipreetam]_
+
+## Local Setup
+
+Follow these steps to get both the backend and frontend servers running locally.
+
+### Prerequisites
+
+* Node.js 20+ and npm
+* Python 3.11+
+* MySQL 8.0+
+
+### 1. Backend Setup (FastAPI)
+
+Open a terminal and run the following commands to set up the virtual environment, install dependencies, and start the API server:
+
+```bash
+# Navigate to the backend directory
+cd backend
+
+# Create a virtual environment
+python -m venv venv
+
+# Activate the virtual environment (Windows)
+venv\Scripts\activate
+
+# Install required dependencies
+python -m pip install fastapi uvicorn sqlalchemy pymysql python-dotenv passlib[bcrypt] python-jose
+
+# Start the development server
+python -m uvicorn app.main:app --reload
+ ```
+### 2. Frontend Setup (React + Vite)
+Open a new terminal window or tab and run the following commands to install packages and launch the frontend client:
+``` 
+# Navigate to the frontend directory
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start the Vite development server
+npm run dev
+```
